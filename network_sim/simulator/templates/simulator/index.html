@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSPF & BGP Protocol Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0a10;--surface:#1a1020;--surface2:#221528;--border:#3a2040;
+  --ospf:#f472b6;--ospf-dim:rgba(255, 83, 206, 0.12);
+  --bgp:#fb7185;--bgp-dim:rgba(255, 21, 134, 0.12);
+  --both:#e879f9;--both-dim:rgba(217, 139, 250, 0.12);
+  --green:#10b981;--red:#ef4444;--yellow:#fbbf24;--orange:#f97316;
+  --text:#fdf2f8;--text-dim:#9d7aaa;
+  --mono:'JetBrains Mono',monospace;--sans:'Space Grotesk',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh;overflow:hidden;
+  display:grid;grid-template-rows:48px 1fr;
+  grid-template-columns:260px 1fr 340px;
+  grid-template-areas:"header header header" "sidebar canvas panel";}
+
+/* HEADER */
+header{grid-area:header;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:16px;z-index:100;}
+.logo{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--ospf);
+  letter-spacing:2px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.logo-box{width:22px;height:22px;border:2px solid var(--ospf);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;font-size:9px;}
+.hdr-sep{width:1px;height:24px;background:var(--border);}
+.preset-btns{display:flex;gap:5px;}
+.preset-btn{font-family:var(--mono);font-size:10px;padding:3px 9px;border:1px solid var(--border);
+  background:transparent;color:var(--text-dim);border-radius:3px;cursor:pointer;transition:all 0.2s;}
+.preset-btn:hover{border-color:var(--ospf);color:var(--ospf);}
+.run-btns{display:flex;gap:6px;margin-left:auto;}
+.run-btn{font-family:var(--mono);font-size:11px;font-weight:700;padding:5px 13px;
+  border:none;border-radius:3px;cursor:pointer;transition:all 0.15s;letter-spacing:1px;}
+.run-ospf{background:var(--ospf);color:#000;}
+.run-ospf:hover{background:#032a31;box-shadow:0 0 14px rgba(0,212,255,0.4);}
+.run-bgp{background:var(--bgp);color:#fff;}
+.run-bgp:hover{box-shadow:0 0 14px rgba(255,107,53,0.4);}
+.run-trace{background:var(--both-dim);border:1px solid var(--both);color:var(--both);}
+.run-trace:hover{background:var(--both);color:#fff;}
+.hdr-stats{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text-dim);}
+.hdr-stat span{font-weight:700;}
+.hdr-stat.ospf span{color:var(--ospf);}
+.hdr-stat.bgp span{color:var(--bgp);}
+.hdr-stat.lnk span{color:var(--yellow);}
+
+/* SIDEBAR */
+.sidebar{grid-area:sidebar;background:var(--surface);border-right:1px solid var(--border);
+  overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px;}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);}
+.psec{background:var(--surface2);border:1px solid var(--border);border-radius:5px;overflow:hidden;}
+.psec-hdr{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text-dim);
+  letter-spacing:2px;padding:7px 10px;border-bottom:1px solid var(--border);
+  text-transform:uppercase;display:flex;align-items:center;gap:5px;cursor:pointer;
+  user-select:none;}
+.psec-hdr:hover{color:var(--text);}
+.psec-body{padding:9px 10px;display:flex;flex-direction:column;gap:7px;}
+.psec-body.collapsed{display:none;}
+label{font-size:10px;color:var(--text-dim);margin-bottom:2px;display:block;font-family:var(--mono);}
+input,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:4px 7px;border-radius:3px;font-family:var(--mono);font-size:11px;outline:none;transition:border-color 0.2s;}
+input:focus,select:focus{border-color:var(--ospf);}
+select option{background:var(--surface);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.add-btn{width:100%;padding:6px;font-family:var(--mono);font-size:11px;font-weight:700;
+  border:none;border-radius:3px;cursor:pointer;transition:all 0.2s;letter-spacing:1px;}
+.add-btn-o{background:var(--ospf-dim);border:1px solid var(--ospf);color:var(--ospf);}
+.add-btn-o:hover{background:var(--ospf);color:#000;}
+.add-btn-b{background:var(--bgp-dim);border:1px solid var(--bgp);color:var(--bgp);}
+.add-btn-b:hover{background:var(--bgp);color:#130000;}
+.add-btn-v{background:var(--both-dim);border:1px solid var(--both);color:var(--both);}
+.add-btn-v:hover{background:var(--both);color:#210000;}
+.mode-toggle{display:flex;background:var(--bg);border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+.mode-btn{flex:1;padding:5px 2px;background:transparent;border:none;color:var(--text-dim);
+  cursor:pointer;transition:all 0.2s;font-family:var(--mono);font-size:10px;font-weight:700;}
+.mode-btn.active{background:var(--ospf-dim);color:var(--ospf);}
+.mode-btn.active.bm{background:var(--bgp-dim);color:var(--bgp);}
+
+/* CANVAS */
+.canvas-area{grid-area:canvas;position:relative;overflow:hidden;background:var(--bg);
+  background-image:radial-gradient(circle at 15% 25%,rgba(0,212,255,0.04) 0%,transparent 45%),
+                   radial-gradient(circle at 85% 75%,rgba(255,107,53,0.04) 0%,transparent 45%);}
+.canvas-area::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:40px 40px;opacity:0.25;}
+#net-canvas{width:100%;height:100%;cursor:default;}
+.canvas-overlay{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
+.canvas-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:10px;color:var(--text-dim);background:var(--surface);
+  border:1px solid var(--border);padding:3px 10px;border-radius:20px;pointer-events:none;white-space:nowrap;}
+.sel-info{background:var(--surface);border:1px solid var(--ospf);border-radius:5px;
+  padding:7px 10px;font-family:var(--mono);font-size:11px;pointer-events:auto;min-width:160px;}
+.sel-name{font-size:13px;font-weight:700;color:var(--ospf);}
+.sel-detail{color:var(--text-dim);margin-top:2px;font-size:10px;}
+.path-legend{background:var(--surface);border:1px solid var(--border);border-radius:5px;
+  padding:6px 10px;font-family:var(--mono);font-size:10px;color:var(--text-dim);pointer-events:auto;}
+.path-legend-title{color:var(--both);font-weight:700;margin-bottom:4px;}
+.legend-row{display:flex;align-items:center;gap:6px;margin-bottom:2px;}
+.legend-line{width:20px;height:2px;border-radius:1px;}
+
+/* RIGHT PANEL */
+.right-panel{grid-area:panel;background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.tab{flex:1;padding:9px 4px;font-family:var(--mono);font-size:10px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;text-align:center;cursor:pointer;
+  color:var(--text-dim);border-bottom:2px solid transparent;transition:all 0.2s;
+  background:transparent;border-top:none;border-left:none;border-right:none;}
+.tab.active.t-ospf{color:var(--ospf);border-bottom-color:var(--ospf);}
+.tab.active.t-bgp{color:var(--bgp);border-bottom-color:var(--bgp);}
+.tab.active.t-log{color:var(--green);border-bottom-color:var(--green);}
+.tab.active.t-stat{color:var(--yellow);border-bottom-color:var(--yellow);}
+.tab.active.t-cfg{color:var(--both);border-bottom-color:var(--both);}
+.tab-content{flex:1;overflow-y:auto;padding:10px;display:none;}
+.tab-content.active{display:block;}
+.tab-content::-webkit-scrollbar{width:3px;}
+.tab-content::-webkit-scrollbar-thumb{background:var(--border);}
+
+/* OSPF results */
+.rr{background:var(--surface2);border:1px solid var(--border);border-radius:5px;margin-bottom:8px;overflow:hidden;}
+.rr-hdr{display:flex;align-items:center;gap:7px;padding:7px 10px;border-bottom:1px solid var(--border);
+  background:rgba(0,212,255,0.04);cursor:pointer;}
+.rr-hdr:hover{background:rgba(0,212,255,0.08);}
+.rr-name{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ospf);}
+.rr-rid{font-family:var(--mono);font-size:10px;color:var(--text-dim);}
+.rr-area{font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-left:auto;}
+.rr-area span{color:var(--yellow);}
+.rtbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px;}
+.rtbl th{padding:5px 7px;text-align:left;color:var(--text-dim);border-bottom:1px solid var(--border);
+  background:var(--bg);font-weight:500;}
+.rtbl td{padding:4px 7px;border-bottom:1px solid rgba(30,45,69,0.4);}
+.rtbl tr:last-child td{border-bottom:none;}
+.rtbl tr:hover td{background:rgba(0,212,255,0.03);}
+.cost-b{display:inline-flex;align-items:center;justify-content:center;min-width:26px;
+  padding:1px 4px;background:var(--ospf-dim);color:var(--ospf);border-radius:2px;font-size:9px;font-weight:700;}
+.nbr-list{padding:6px 10px;display:flex;flex-wrap:wrap;gap:4px;}
+.nbr-chip{font-family:var(--mono);font-size:9px;padding:2px 6px;background:var(--ospf-dim);
+  color:var(--ospf);border-radius:2px;border:1px solid rgba(0,212,255,0.3);}
+
+/* BGP results */
+.br{background:var(--surface2);border:1px solid var(--border);border-radius:5px;margin-bottom:8px;overflow:hidden;}
+.br-hdr{display:flex;align-items:center;gap:7px;padding:7px 10px;background:rgba(255,107,53,0.04);border-bottom:1px solid var(--border);}
+.br-name{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--bgp);}
+.br-as{font-family:var(--mono);font-size:10px;color:var(--text-dim);}
+.br-status{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--green);}
+.rib{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px;}
+.rib th{padding:5px 7px;text-align:left;color:var(--text-dim);border-bottom:1px solid var(--border);background:var(--bg);}
+.rib td{padding:4px 7px;border-bottom:1px solid rgba(30,45,69,0.4);}
+.rib tr:last-child td{border-bottom:none;}
+.best-row td:first-child{border-left:2px solid var(--green);}
+.ebgp-b{color:var(--bgp);font-weight:700;}
+.ibgp-b{color:var(--both);font-weight:700;}
+
+/* LOGS */
+.log-entry{font-family:var(--mono);font-size:10px;padding:3px 7px;border-radius:2px;
+  margin-bottom:2px;display:flex;gap:6px;align-items:flex-start;line-height:1.4;}
+.log-ospf{color:var(--ospf);background:var(--ospf-dim);}
+.log-bgp{color:var(--bgp);background:var(--bgp-dim);}
+.log-system{color:var(--text-dim);background:rgba(30,45,69,0.4);}
+.log-tag{font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 3px;border-radius:2px;flex-shrink:0;margin-top:1px;}
+.log-ospf .log-tag{background:var(--ospf);color:#000;}
+.log-bgp .log-tag{background:var(--bgp);color:#fff;}
+.log-system .log-tag{background:var(--border);color:var(--text-dim);}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:10px 12px;}
+.stat-card-label{font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.stat-card-value{font-family:var(--mono);font-size:22px;font-weight:700;}
+.sv-ospf{color:var(--ospf);}
+.sv-bgp{color:var(--bgp);}
+.sv-grn{color:var(--green);}
+.sv-red{color:var(--red);}
+.sv-yel{color:var(--yellow);}
+.sv-vio{color:var(--both);}
+.as-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+.as-chip{font-family:var(--mono);font-size:10px;padding:2px 8px;background:var(--bgp-dim);
+  color:var(--bgp);border-radius:2px;border:1px solid rgba(255,107,53,0.3);}
+.section-title{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text-dim);
+  letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;margin-top:10px;}
+
+/* CONFIG EXPORT */
+.cfg-router-select{margin-bottom:8px;}
+.cfg-code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;
+  font-family:var(--mono);font-size:10px;color:var(--text);white-space:pre;overflow-x:auto;
+  line-height:1.6;max-height:380px;overflow-y:auto;}
+.cfg-code::-webkit-scrollbar{width:3px;height:3px;}
+.cfg-code::-webkit-scrollbar-thumb{background:var(--border);}
+.cfg-comment{color:var(--text-dim);}
+.cfg-keyword{color:var(--ospf);}
+.cfg-value{color:var(--yellow);}
+.copy-btn{width:100%;margin-top:6px;padding:6px;font-family:var(--mono);font-size:10px;font-weight:700;
+  background:var(--both-dim);border:1px solid var(--both);color:var(--both);border-radius:3px;cursor:pointer;}
+.copy-btn:hover{background:var(--both);color:#fff;}
+
+/* TRACE PANEL */
+.trace-panel{background:var(--surface2);border:1px solid var(--both);border-radius:5px;padding:10px;margin-bottom:8px;}
+.trace-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--both);margin-bottom:8px;}
+.trace-path-item{font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:3px;
+  cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:3px;
+  border:1px solid transparent;transition:all 0.15s;}
+.trace-path-item:hover{border-color:var(--both);background:var(--both-dim);}
+.trace-path-item.selected{border-color:var(--both);background:var(--both-dim);}
+.trace-cost{color:var(--both);font-weight:700;min-width:40px;}
+.trace-nodes{color:var(--text-dim);}
+
+/* TOOLTIP */
+.tooltip{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:5px;
+  padding:7px 10px;font-family:var(--mono);font-size:10px;pointer-events:none;z-index:999;
+  display:none;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+.tt-title{font-weight:700;font-size:12px;margin-bottom:3px;}
+.tt-row{display:flex;justify-content:space-between;gap:10px;color:var(--text-dim);margin-bottom:1px;}
+.tt-row span:last-child{color:var(--text);}
+
+/* CONTEXT MENU */
+.ctx-menu{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:5px;
+  overflow:hidden;z-index:999;display:none;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,0.6);}
+.ctx-item{padding:7px 12px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:background 0.15s;color:var(--text);}
+.ctx-item:hover{background:var(--surface2);}
+.ctx-item.danger{color:var(--red);}
+.ctx-item.danger:hover{background:rgba(239,68,68,0.1);}
+.ctx-sep{height:1px;background:var(--border);margin:2px 0;}
+
+/* NOTIF */
+.notif{position:fixed;bottom:16px;right:16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:5px;padding:8px 14px;font-family:var(--mono);font-size:11px;z-index:9999;
+  display:none;animation:slideUp 0.2s ease;max-width:280px;}
+.notif.success{border-color:var(--green);color:var(--green);}
+.notif.error{border-color:var(--red);color:var(--red);}
+.notif.info{border-color:var(--both);color:var(--both);}
+@keyframes slideUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:28px 12px;color:var(--text-dim);font-family:var(--mono);font-size:11px;}
+.empty-ico{font-size:28px;margin-bottom:6px;}
+
+/* PULSE ANIMATION on active links */
+@keyframes dashFlow{from{stroke-dashoffset:0}to{stroke-dashoffset:-20}}
+.link-animated{animation:dashFlow 1s linear infinite;}
+
+/* SPINNER */
+.spinner{display:inline-block;width:10px;height:10px;border:2px solid var(--border);
+  border-top-color:var(--ospf);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-box">◈</div>Routing Protocol Simulator</div>
+  <div class="hdr-sep"></div>
+  <div class="preset-btns">
+    <button class="preset-btn" onclick="loadPreset('ospf_basic')" title="6-router OSPF topology">OSPF Basic</button>
+    <button class="preset-btn" onclick="loadPreset('bgp_multias')" title="Multi-AS BGP topology">BGP Multi-AS</button>
+    <button class="preset-btn" onclick="loadPreset('mixed')" title="Mixed OSPF+BGP">Mixed</button>
+  </div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-stats">
+    <div class="hdr-stat ospf">R:<span id="s-r">0</span></div>
+    <div class="hdr-stat lnk">L:<span id="s-l">0</span></div>
+    <div class="hdr-stat bgp">BGP:<span id="s-b">0</span></div>
+  </div>
+  <div class="run-btns">
+    <button class="run-btn run-ospf" onclick="runOSPF()">▶ OSPF SPF</button>
+    <button class="run-btn run-bgp" onclick="runBGP()">▶ BGP</button>
+    <button class="run-btn run-trace" onclick="enterTraceMode()">⟳ TRACE</button>
+  </div>
+</header>
+
+<aside class="sidebar">
+  <!-- Add Router -->
+  <div class="psec">
+    <div class="psec-hdr" onclick="toggleSection(this)">◈ ADD ROUTER <span style="margin-left:auto">▾</span></div>
+    <div class="psec-body">
+      <div class="form-row">
+        <div><label>Name</label><input id="r-name" type="text" placeholder="R1" maxlength="12"></div>
+        <div><label>Router ID</label><input id="r-id" type="text" placeholder="1.1.1.1"></div>
+      </div>
+      <div class="form-row">
+        <div><label>Protocol</label>
+          <select id="r-proto" onchange="toggleASF()">
+            <option value="ospf">OSPF</option>
+            <option value="bgp">BGP</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <div><label>OSPF Area</label><input id="r-area" type="text" placeholder="0.0.0.0" value="0.0.0.0"></div>
+      </div>
+      <div id="as-f" style="display:none"><label>AS Number</label><input id="r-asn" type="number" placeholder="65001"></div>
+      <button class="add-btn add-btn-o" onclick="addRouter()">+ ROUTER</button>
+    </div>
+  </div>
+
+  <!-- Add Link -->
+  <div class="psec">
+    <div class="psec-hdr" onclick="toggleSection(this)">⟷ ADD LINK <span style="margin-left:auto">▾</span></div>
+    <div class="psec-body">
+      <div><label>Source</label><select id="l-src"><option value="">-- select --</option></select></div>
+      <div><label>Target</label><select id="l-tgt"><option value="">-- select --</option></select></div>
+      <div class="form-row">
+        <div><label>OSPF Cost</label><input id="l-cost" type="number" value="10" min="1"></div>
+        <div><label>BW (Mbps)</label><input id="l-bw" type="number" value="1000" min="1"></div>
+      </div>
+      <button class="add-btn add-btn-o" onclick="addLink()">+ LINK</button>
+    </div>
+  </div>
+
+  <!-- BGP Session -->
+  <div class="psec">
+    <div class="psec-hdr" onclick="toggleSection(this)">◎ BGP SESSION <span style="margin-left:auto">▾</span></div>
+    <div class="psec-body">
+      <div><label>Local Router</label><select id="b-local"><option value="">-- select --</option></select></div>
+      <div><label>Peer Router</label><select id="b-peer"><option value="">-- select --</option></select></div>
+      <div class="form-row">
+        <div><label>Local Pref</label><input id="b-lp" type="number" value="100"></div>
+        <div><label>MED</label><input id="b-med" type="number" value="0"></div>
+      </div>
+      <button class="add-btn add-btn-b" onclick="addBGPSession()">+ BGP SESSION</button>
+    </div>
+  </div>
+
+  <!-- Packet Trace -->
+  <div class="psec">
+    <div class="psec-hdr" onclick="toggleSection(this)">⟳ PACKET TRACE <span style="margin-left:auto">▾</span></div>
+    <div class="psec-body">
+      <div><label>Source</label><select id="tr-src"><option value="">-- select --</option></select></div>
+      <div><label>Destination</label><select id="tr-dst"><option value="">-- select --</option></select></div>
+      <button class="add-btn add-btn-v" onclick="runTrace()">⟳ TRACE PATH</button>
+      <button class="add-btn add-btn-v" id="anim-btn" onclick="toggleAnimation()" style="display:none">▶ ANIMATE PACKET</button>
+    </div>
+  </div>
+
+  <!-- Canvas Mode -->
+  <div class="psec">
+    <div class="psec-hdr" onclick="toggleSection(this)">⌖ INTERACTION <span style="margin-left:auto">▾</span></div>
+    <div class="psec-body">
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-move" onclick="setMode('move')">MOVE</button>
+        <button class="mode-btn bm" id="mode-link" onclick="setMode('link')">LINK</button>
+        <button class="mode-btn bm" id="mode-bgp" onclick="setMode('bgp')">BGP</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);line-height:1.6;margin-top:2px">
+        MOVE: drag routers · right-click menu<br>
+        LINK: click 2 routers → create link<br>
+        BGP: click 2 routers → BGP session
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- CANVAS -->
+<div class="canvas-area">
+  <div class="canvas-overlay">
+    <div class="sel-info" id="sel-info" style="display:none">
+      <div class="sel-name" id="sel-name"></div>
+      <div class="sel-detail" id="sel-detail"></div>
+    </div>
+    <div class="path-legend" id="path-legend" style="display:none">
+      <div class="path-legend-title">PATH TRACE</div>
+      <div class="legend-row"><div class="legend-line" style="background:#a78bfa"></div><span style="color:var(--both)">Best (lowest cost)</span></div>
+      <div class="legend-row"><div class="legend-line" style="background:#64748b;opacity:0.6"></div><span style="color:var(--text-dim)">Alternate paths</span></div>
+    </div>
+  </div>
+  <svg id="net-canvas"></svg>
+  <div class="canvas-hint" id="canvas-hint">Load a preset or add routers · Right-click nodes/links for options</div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right-panel">
+  <div class="tab-bar">
+    <button class="tab t-ospf active" onclick="switchTab('ospf')">OSPF</button>
+    <button class="tab t-bgp" onclick="switchTab('bgp')">BGP</button>
+    <button class="tab t-stat" onclick="switchTab('stat')">STATS</button>
+    <button class="tab t-cfg" onclick="switchTab('cfg')">CONFIG</button>
+    <button class="tab t-log" onclick="switchTab('log')">LOGS</button>
+  </div>
+  <div class="tab-content active" id="tab-ospf">
+    <div class="empty"><div class="empty-ico">◈</div>Run OSPF SPF to see routing tables</div>
+  </div>
+  <div class="tab-content" id="tab-bgp">
+    <div class="empty"><div class="empty-ico">◎</div>Run BGP to see path selection</div>
+  </div>
+  <div class="tab-content" id="tab-stat">
+    <div class="empty"><div class="empty-ico">◉</div>Load a topology to see stats</div>
+  </div>
+  <div class="tab-content" id="tab-cfg">
+    <div class="empty"><div class="empty-ico">≡</div>Run simulation to generate configs</div>
+  </div>
+  <div class="tab-content" id="tab-log">
+    <div class="empty"><div class="empty-ico">▸</div>No log entries yet</div>
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div id="tt-body"></div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-item" id="ctx-trace" onclick="ctxAction('trace')">⟳ Trace Path From Here</div>
+  <div class="ctx-item" id="ctx-toggle" onclick="ctxAction('toggle')" style="display:none">⟷ Toggle Link Up/Down</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctx-del" onclick="ctxAction('delete')">✕ Delete</div>
+</div>
+
+<!-- NOTIF -->
+<div class="notif" id="notif"></div>
+
+<script>
+const API = (path, opts={}) =>
+  fetch(path, {headers:{'Content-Type':'application/json'}, ...opts}).then(r=>r.json());
+
+let topo = {routers:[], links:[], sessions:[]};
+let mode = 'move';
+let linkSrc = null;
+let dragging = null, dragOff = {x:0,y:0};
+let ctxTarget = null;
+let tracePaths = null;
+let selectedTraceIdx = 0;
+let animTimer = null;
+let animStep = 0;
+let animActive = false;
+let ospfResults = null;
+let bgpResults = null;
+let configData = null;
+
+// ─── INIT ───────────────────────────────────────────────
+async function init() {
+  await loadTopo();
+  renderCanvas();
+  updateSelects();
+}
+
+async function loadTopo() {
+  topo = await API('/api/topology/');
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('s-r').textContent = topo.routers.length;
+  document.getElementById('s-l').textContent = topo.links.length;
+  document.getElementById('s-b').textContent = topo.sessions.length;
+  document.getElementById('canvas-hint').style.display = topo.routers.length ? 'none' : '';
+}
+
+// ─── CANVAS ─────────────────────────────────────────────
+function renderCanvas() {
+  const svg = document.getElementById('net-canvas');
+  const w = svg.clientWidth || 750, h = svg.clientHeight || 500;
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+  // BGP sessions (dashed overlay)
+  topo.sessions.forEach(s => {
+    const src = topo.routers.find(r => r.id === s.local_router_id);
+    const tgt = topo.routers.find(r => r.id === s.peer_router_id);
+    if (!src || !tgt) return;
+    const col = s.session_type === 'ibgp' ? '#a78bfa' : '#ff6b35';
+    const ln = svgE('line');
+    Object.assign_attrs(ln, {x1:src.x_pos,y1:src.y_pos,x2:tgt.x_pos,y2:tgt.y_pos,
+      stroke:col,'stroke-width':'1.5','stroke-dasharray':'8,5',opacity:'0.45',
+      'data-type':'sess','data-id':s.id});
+    ln.style.cursor='pointer';
+    const lx=(src.x_pos+tgt.x_pos)/2, ly=(src.y_pos+tgt.y_pos)/2;
+    const lt = svgText(lx, ly-5, s.session_type.toUpperCase(), col, 9);
+    svg.appendChild(ln); svg.appendChild(lt);
+    ln.addEventListener('contextmenu', e=>showCtx(e,'sess',s.id));
+  });
+
+  // OSPF path highlight overlay
+  if (tracePaths && tracePaths.length > 0) {
+    tracePaths.forEach((path, idx) => {
+      const isSelected = idx === selectedTraceIdx;
+      path.links.forEach(lid => {
+        const link = topo.links.find(l => l.id === lid);
+        if (!link) return;
+        const src = topo.routers.find(r => r.id === link.source_id);
+        const tgt = topo.routers.find(r => r.id === link.target_id);
+        if (!src || !tgt) return;
+        const hl = svgE('line');
+        Object.assign_attrs(hl, {x1:src.x_pos,y1:src.y_pos,x2:tgt.x_pos,y2:tgt.y_pos,
+          stroke: isSelected ? '#a78bfa' : '#334155',
+          'stroke-width': isSelected ? '5' : '3',
+          'stroke-dasharray': isSelected ? '12,4' : '6,4',
+          opacity: isSelected ? '0.9' : '0.4',
+          'pointer-events':'none'});
+        if (isSelected) hl.classList.add('link-animated');
+        svg.appendChild(hl);
+      });
+    });
+  }
+
+  // Physical links
+  topo.links.forEach(link => {
+    const src = topo.routers.find(r => r.id === link.source_id);
+    const tgt = topo.routers.find(r => r.id === link.target_id);
+    if (!src || !tgt) return;
+    const active = link.is_active;
+
+    const ln = svgE('line');
+    Object.assign_attrs(ln, {x1:src.x_pos,y1:src.y_pos,x2:tgt.x_pos,y2:tgt.y_pos,
+      stroke: active ? '#1e3a5f' : '#3d1515',
+      'stroke-width': active ? '2.5' : '2',
+      'stroke-dasharray': active ? '' : '5,5'});
+
+    const hit = svgE('line');
+    Object.assign_attrs(hit, {x1:src.x_pos,y1:src.y_pos,x2:tgt.x_pos,y2:tgt.y_pos,
+      stroke:'transparent','stroke-width':'14',
+      'data-type':'link','data-id':link.id});
+    hit.style.cursor='pointer';
+
+    const mx=(src.x_pos+tgt.x_pos)/2, my=(src.y_pos+tgt.y_pos)/2;
+    const cbg=svgE('rect');
+    Object.assign_attrs(cbg, {x:mx-9,y:my-8,width:'18',height:'11',rx:'2',
+      fill:active?'rgba(0,212,255,0.12)':'rgba(239,68,68,0.12)','pointer-events':'none'});
+    const ct = svgText(mx, my+1, link.cost, active?'#00d4ff':'#ef4444', 9, '700');
+    ct.setAttribute('pointer-events','none');
+
+    svg.appendChild(ln); svg.appendChild(hit);
+    svg.appendChild(cbg); svg.appendChild(ct);
+
+    [ln, hit].forEach(el => {
+      el.addEventListener('mouseenter', e=>showLinkTT(link, e));
+      el.addEventListener('mouseleave', hideTT);
+      el.addEventListener('contextmenu', e=>showCtx(e,'link',link.id));
+    });
+  });
+
+  // Animated packet dot
+  if (animActive && tracePaths && tracePaths[selectedTraceIdx]) {
+    // Drawn in animateStep()
+  }
+
+  // Routers
+  topo.routers.forEach(router => {
+    const g = svgE('g');
+    g.setAttribute('data-rid', router.id);
+    g.style.cursor = mode==='move' ? 'grab' : 'pointer';
+    g.setAttribute('transform', `translate(${router.x_pos},${router.y_pos})`);
+
+    const col = router.protocol==='ospf'?'#00d4ff':router.protocol==='bgp'?'#ff6b35':'#a78bfa';
+    const dimCol = router.protocol==='ospf'?'rgba(0,212,255,0.1)':router.protocol==='bgp'?'rgba(255,107,53,0.1)':'rgba(167,139,250,0.1)';
+
+    // Glow ring
+    const glow = svgE('circle');
+    Object.assign_attrs(glow, {r:'20', fill:dimCol, 'pointer-events':'none'});
+
+    // Body
+    const body = svgE('circle');
+    Object.assign_attrs(body, {r:'13', fill:'#111827', stroke:col, 'stroke-width':'2'});
+
+    // Icon
+    const icon = svgText(0,0, router.protocol==='ospf'?'O':router.protocol==='bgp'?'B':'◈', col, 10, '700');
+    icon.setAttribute('dominant-baseline','central');
+    icon.setAttribute('pointer-events','none');
+
+    // Name
+    const nm = svgText(0,22, router.name, col, 11, '700');
+    nm.setAttribute('pointer-events','none');
+
+    // Router ID
+    const rid = svgText(0,32, router.router_id, '#475569', 9);
+    rid.setAttribute('pointer-events','none');
+
+    // AS number badge
+    if (router.as_number) {
+      const asBg = svgE('rect');
+      Object.assign_attrs(asBg, {x:'-16',y:'-22',width:'32',height:'9',rx:'2',
+        fill:'rgba(255,107,53,0.15)','pointer-events':'none'});
+      const asLbl = svgText(0,-15, `AS${router.as_number}`, '#ff6b35', 8, '700');
+      asLbl.setAttribute('pointer-events','none');
+      g.appendChild(asBg); g.appendChild(asLbl);
+    }
+
+    // Highlight if src in link/bgp mode
+    if (linkSrc && linkSrc.id === router.id) {
+      body.setAttribute('stroke-width','3');
+      body.setAttribute('filter','drop-shadow(0 0 8px ' + col + ')');
+    }
+
+    g.appendChild(glow); g.appendChild(body); g.appendChild(icon);
+    g.appendChild(nm); g.appendChild(rid);
+
+    g.addEventListener('mouseenter', e=>showRouterTT(router, e));
+    g.addEventListener('mouseleave', hideTT);
+    g.addEventListener('mousedown', e=>onRouterDown(e, router));
+    g.addEventListener('contextmenu', e=>showCtx(e,'router',router.id));
+    svg.appendChild(g);
+  });
+
+  // Animated packet sprite
+  if (animActive) drawAnimPacket(svg);
+}
+
+function svgE(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+function svgText(x,y,txt,fill,size,weight='400') {
+  const t = svgE('text');
+  Object.assign_attrs(t, {x,y,'text-anchor':'middle','font-size':size,
+    'font-family':'JetBrains Mono','fill':fill,'font-weight':weight});
+  t.textContent = txt;
+  return t;
+}
+Object.assign_attrs = (el, attrs) => {
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
+};
+
+// ─── DRAG ────────────────────────────────────────────────
+function onRouterDown(e, router) {
+  e.stopPropagation();
+  hideTT();
+  const svg = document.getElementById('net-canvas');
+  const rect = svg.getBoundingClientRect();
+
+  if (mode === 'move') {
+    dragging = router;
+    dragOff = {x: e.clientX-rect.left-router.x_pos, y: e.clientY-rect.top-router.y_pos};
+    showSelInfo(router);
+  } else {
+    if (!linkSrc) {
+      linkSrc = router;
+      renderCanvas();
+      notify(`Select second router to ${mode==='link'?'link':'add BGP session'}`, 'info');
+    } else if (linkSrc.id !== router.id) {
+      if (mode === 'link') addLinkDirect(linkSrc.id, router.id);
+      else addBGPDirect(linkSrc.id, router.id);
+      linkSrc = null;
+    } else {
+      linkSrc = null; renderCanvas();
+    }
+  }
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const svg = document.getElementById('net-canvas');
+  const rect = svg.getBoundingClientRect();
+  const x = Math.max(20, Math.min(rect.width-20, e.clientX-rect.left-dragOff.x));
+  const y = Math.max(20, Math.min(rect.height-20, e.clientY-rect.top-dragOff.y));
+  const r = topo.routers.find(r=>r.id===dragging.id);
+  if (r) { r.x_pos=x; r.y_pos=y; }
+  renderCanvas();
+  if (document.getElementById('tt-title')) hideTT();
+});
+
+document.addEventListener('mouseup', async () => {
+  if (dragging) {
+    await API('/api/router/pos/', {method:'POST', body:JSON.stringify({id:dragging.id, x:dragging.x_pos, y:dragging.y_pos})});
+    dragging = null;
+  }
+});
+
+// ─── MODE ────────────────────────────────────────────────
+function setMode(m) {
+  mode = m; linkSrc = null;
+  ['move','link','bgp'].forEach(id => {
+    document.getElementById(`mode-${id}`).classList.toggle('active', id===m);
+  });
+  document.getElementById('net-canvas').style.cursor = m==='move'?'default':'crosshair';
+  renderCanvas();
+}
+
+// ─── SELINFO ─────────────────────────────────────────────
+function showSelInfo(router) {
+  const el = document.getElementById('sel-info');
+  el.style.display = 'block';
+  document.getElementById('sel-name').textContent = router.name;
+  document.getElementById('sel-detail').textContent =
+    `${router.router_id} · ${router.protocol.toUpperCase()}${router.as_number?' · AS'+router.as_number:''}`;
+}
+
+// ─── FORMS ───────────────────────────────────────────────
+function toggleSection(hdr) {
+  const body = hdr.nextElementSibling;
+  body.classList.toggle('collapsed');
+  hdr.querySelector('span').textContent = body.classList.contains('collapsed') ? '▸' : '▾';
+}
+
+function toggleASF() {
+  const p = document.getElementById('r-proto').value;
+  document.getElementById('as-f').style.display = (p==='bgp'||p==='both') ? 'block' : 'none';
+}
+
+async function addRouter() {
+  const name = document.getElementById('r-name').value.trim();
+  const rid = document.getElementById('r-id').value.trim();
+  if (!name||!rid) { notify('Name and Router ID required','error'); return; }
+  const res = await API('/api/router/add/', {method:'POST', body:JSON.stringify({
+    name, router_id:rid,
+    protocol:document.getElementById('r-proto').value,
+    ospf_area:document.getElementById('r-area').value||'0.0.0.0',
+    as_number:document.getElementById('r-asn').value||null,
+    x_pos:100+Math.random()*500, y_pos:80+Math.random()*280,
+  })});
+  if (res.status==='ok') {
+    notify(`Router ${res.name} added`,'success');
+    document.getElementById('r-name').value='';
+    document.getElementById('r-id').value='';
+    await loadTopo(); renderCanvas(); updateSelects();
+  }
+}
+
+async function addLink() {
+  const s=document.getElementById('l-src').value, t=document.getElementById('l-tgt').value;
+  if (!s||!t||s===t) { notify('Select two different routers','error'); return; }
+  await addLinkDirect(+s, +t,
+    +document.getElementById('l-cost').value||10,
+    +document.getElementById('l-bw').value||1000);
+}
+
+async function addLinkDirect(sId, tId, cost=10, bw=1000) {
+  const res = await API('/api/link/add/', {method:'POST', body:JSON.stringify({source_id:sId,target_id:tId,cost,bandwidth:bw})});
+  if (res.status==='ok') { notify('Link added','success'); await loadTopo(); renderCanvas(); }
+  else notify('Error adding link','error');
+}
+
+async function addBGPSession() {
+  const l=document.getElementById('b-local').value, p=document.getElementById('b-peer').value;
+  if (!l||!p||l===p) { notify('Select two different routers','error'); return; }
+  await addBGPDirect(+l, +p, +document.getElementById('b-lp').value||100, +document.getElementById('b-med').value||0);
+}
+
+async function addBGPDirect(lId, pId, lp=100, med=0) {
+  const res = await API('/api/bgp/session/add/', {method:'POST', body:JSON.stringify({local_router_id:lId,peer_router_id:pId,local_preference:lp,med})});
+  if (res.status==='ok') { notify(`BGP session (${res.session_type.toUpperCase()}) added`,'success'); await loadTopo(); renderCanvas(); }
+  else notify('Error','error');
+}
+
+function updateSelects() {
+  ['l-src','l-tgt','b-local','b-peer','tr-src','tr-dst'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">-- select --</option>';
+    topo.routers.forEach(r => {
+      const o = document.createElement('option');
+      o.value=r.id; o.textContent=`${r.name} (${r.router_id})`;
+      sel.appendChild(o);
+    });
+  });
+}
+
+// ─── CONTEXT MENU ────────────────────────────────────────
+function showCtx(e, type, id) {
+  e.preventDefault(); e.stopPropagation();
+  ctxTarget={type,id};
+  const m=document.getElementById('ctx-menu');
+  m.style.display='block';
+  m.style.left=e.clientX+'px';
+  m.style.top=e.clientY+'px';
+  document.getElementById('ctx-trace').style.display = type==='router'?'block':'none';
+  document.getElementById('ctx-toggle').style.display = type==='link'?'block':'none';
+}
+
+async function ctxAction(action) {
+  hideCtxMenu();
+  if (!ctxTarget) return;
+  const {type,id} = ctxTarget;
+  if (action==='trace' && type==='router') {
+    document.getElementById('tr-src').value = id;
+    notify('Select destination in Trace panel','info');
+    return;
+  }
+  if (action==='toggle' && type==='link') {
+    await API(`/api/link/${id}/toggle/`, {method:'POST'});
+    tracePaths=null; renderCanvas(); await loadTopo(); renderCanvas();
+    return;
+  }
+  if (action==='delete') {
+    if (type==='router') await API(`/api/router/${id}/delete/`, {method:'DELETE'});
+    else if (type==='link') await API(`/api/link/${id}/delete/`, {method:'DELETE'});
+    else if (type==='sess') await API(`/api/bgp/session/${id}/delete/`, {method:'DELETE'});
+    document.getElementById('sel-info').style.display='none';
+    tracePaths=null; await loadTopo(); renderCanvas(); updateSelects();
+  }
+}
+
+function hideCtxMenu() { document.getElementById('ctx-menu').style.display='none'; ctxTarget=null; }
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('keydown', e => { if (e.key==='Escape') { linkSrc=null; stopAnimation(); tracePaths=null; renderCanvas(); document.getElementById('path-legend').style.display='none'; } });
+
+// ─── TOOLTIPS ────────────────────────────────────────────
+function showRouterTT(r, e) {
+  const col = r.protocol==='ospf'?'var(--ospf)':r.protocol==='bgp'?'var(--bgp)':'var(--both)';
+  document.getElementById('tt-title').style.color = col;
+  document.getElementById('tt-title').textContent = r.name;
+  document.getElementById('tt-body').innerHTML = `
+    <div class="tt-row"><span>Router ID</span><span>${r.router_id}</span></div>
+    <div class="tt-row"><span>Protocol</span><span>${r.protocol.toUpperCase()}</span></div>
+    ${r.as_number?`<div class="tt-row"><span>AS Number</span><span>${r.as_number}</span></div>`:''}
+    <div class="tt-row"><span>OSPF Area</span><span>${r.ospf_area}</span></div>
+  `;
+  showTT(e);
+}
+function showLinkTT(link, e) {
+  const active = link.is_active;
+  document.getElementById('tt-title').style.color = active?'var(--ospf)':'var(--red)';
+  document.getElementById('tt-title').textContent = `${link['source__name']} ↔ ${link['target__name']}`;
+  document.getElementById('tt-body').innerHTML = `
+    <div class="tt-row"><span>OSPF Cost</span><span>${link.cost}</span></div>
+    <div class="tt-row"><span>Bandwidth</span><span>${link.bandwidth} Mbps</span></div>
+    <div class="tt-row"><span>Status</span><span style="color:${active?'var(--green)':'var(--red)'}">${active?'UP':'DOWN'}</span></div>
+  `;
+  showTT(e);
+}
+function showTT(e) {
+  const tt=document.getElementById('tooltip');
+  tt.style.display='block';
+  const x=Math.min(e.clientX+12, window.innerWidth-tt.offsetWidth-10);
+  const y=Math.min(e.clientY+12, window.innerHeight-tt.offsetHeight-10);
+  tt.style.left=x+'px'; tt.style.top=y+'px';
+}
+function hideTT() { document.getElementById('tooltip').style.display='none'; }
+
+// ─── SIMULATION ──────────────────────────────────────────
+async function runOSPF() {
+  const btn = document.querySelector('.run-ospf');
+  btn.innerHTML='<span class="spinner"></span>SPF...'; btn.disabled=true;
+  const res = await API('/api/run/ospf/');
+  btn.innerHTML='▶ OSPF SPF'; btn.disabled=false;
+  if (res.error) { notify(res.error,'error'); return; }
+  ospfResults = res.lsdb;
+  renderOSPF(res.lsdb);
+  switchTab('ospf');
+  await loadLogs();
+  notify(`OSPF SPF complete — ${Object.keys(res.lsdb).length} routers`, 'success');
+  await loadStats();
+}
+
+async function runBGP() {
+  const btn = document.querySelector('.run-bgp');
+  btn.innerHTML='<span class="spinner"></span>BGP...'; btn.disabled=true;
+  const res = await API('/api/run/bgp/');
+  btn.innerHTML='▶ BGP'; btn.disabled=false;
+  bgpResults = res.bgp_table;
+  renderBGP(res.bgp_table);
+  switchTab('bgp');
+  await loadLogs();
+  notify('BGP path selection complete','success');
+  await loadStats();
+}
+
+// ─── OSPF RENDER ─────────────────────────────────────────
+function renderOSPF(lsdb) {
+  const c = document.getElementById('tab-ospf');
+  if (!lsdb || !Object.keys(lsdb).length) { c.innerHTML='<div class="empty"><div class="empty-ico">◈</div>No OSPF data</div>'; return; }
+  let html = '';
+  for (const [rid,d] of Object.entries(lsdb)) {
+    html += `<div class="rr">
+      <div class="rr-hdr">
+        <span class="rr-name">${d.name}</span>
+        <span class="rr-rid">${d.router_id}</span>
+        <span class="rr-area">Area <span>${d.area}</span></span>
+      </div>
+      <div class="nbr-list">${d.neighbors.map(n=>`<span class="nbr-chip">↔${n.router_name}:${n.cost}</span>`).join('')}</div>
+      <table class="rtbl">
+        <thead><tr><th>Dest</th><th>Cost</th><th>Next Hop</th><th>Path</th></tr></thead>
+        <tbody>${d.routing_table.map(rt=>`
+          <tr>
+            <td>${rt.dest_name}<br><span style="color:var(--text-dim);font-size:9px">${rt.destination}</span></td>
+            <td><span class="cost-b">${rt.cost}</span></td>
+            <td style="color:${rt.reachable?'var(--text)':'var(--red)'}">${rt.reachable?rt.next_hop:'⚠'}</td>
+            <td style="color:var(--text-dim);font-size:9px">${rt.path?rt.path.join('→'):''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  c.innerHTML = html;
+}
+
+// ─── BGP RENDER ──────────────────────────────────────────
+function renderBGP(bgpTable) {
+  const c = document.getElementById('tab-bgp');
+  if (!bgpTable) { c.innerHTML='<div class="empty"><div class="empty-ico">◎</div>No BGP data</div>'; return; }
+  const entries = Object.entries(bgpTable).filter(([,v])=>v.peer_count>0);
+  if (!entries.length) { c.innerHTML='<div class="empty"><div class="empty-ico">◎</div>No BGP peers configured</div>'; return; }
+  let html = '';
+  for (const [rid,d] of entries) {
+    html += `<div class="br">
+      <div class="br-hdr">
+        <span class="br-name">${d.router}</span>
+        <span class="br-as">AS${d.as_number||'?'}</span>
+        <span class="br-status">● ${d.established} peer${d.established!==1?'s':''}</span>
+      </div>
+      <table class="rib">
+        <thead><tr><th>*</th><th>Peer</th><th>AS</th><th>LP</th><th>MED</th><th>Type</th></tr></thead>
+        <tbody>${d.rib.map(e=>`
+          <tr class="${d.best_path&&d.best_path.peer===e.peer?'best-row':''}">
+            <td style="color:var(--green);font-weight:700">${d.best_path&&d.best_path.peer===e.peer?'►':' '}</td>
+            <td>${e.peer}</td><td>${e.peer_as}</td>
+            <td style="color:${e.local_pref>=100?'var(--green)':'var(--yellow)'}">${e.local_pref}</td>
+            <td>${e.med}</td>
+            <td><span class="${e.session_type}-b">${e.session_type.toUpperCase()}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${d.best_path?`<div style="padding:5px 10px;font-family:var(--mono);font-size:9px;color:var(--text-dim);border-top:1px solid var(--border)">
+        Best: ${d.best_path.prefix} via <span style="color:var(--bgp)">${d.best_path.peer}</span>
+        LP=${d.best_path.local_pref} MED=${d.best_path.med}
+      </div>`:''}
+    </div>`;
+  }
+  c.innerHTML = html;
+}
+
+// ─── STATS ───────────────────────────────────────────────
+async function loadStats() {
+  const res = await API('/api/topology/stats/');
+  const c = document.getElementById('tab-stat');
+  c.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-card-label">Routers</div><div class="stat-card-value sv-ospf">${res.router_count}</div></div>
+      <div class="stat-card"><div class="stat-card-label">Links</div><div class="stat-card-value sv-yel">${res.link_count}</div></div>
+      <div class="stat-card"><div class="stat-card-label">Active Links</div><div class="stat-card-value sv-grn">${res.active_links}</div></div>
+      <div class="stat-card"><div class="stat-card-label">Down Links</div><div class="stat-card-value ${res.down_links>0?'sv-red':'sv-grn'}">${res.down_links}</div></div>
+      <div class="stat-card"><div class="stat-card-label">BGP Sessions</div><div class="stat-card-value sv-bgp">${res.session_count}</div></div>
+      <div class="stat-card"><div class="stat-card-label">Avg Degree</div><div class="stat-card-value sv-vio">${res.avg_degree}</div></div>
+      <div class="stat-card"><div class="stat-card-label">OSPF Routers</div><div class="stat-card-value sv-ospf">${res.ospf_routers}</div></div>
+      <div class="stat-card"><div class="stat-card-label">BGP Routers</div><div class="stat-card-value sv-bgp">${res.bgp_routers}</div></div>
+    </div>
+    ${res.diameter>0?`<div class="section-title">OSPF TOPOLOGY DIAMETER</div>
+      <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:var(--ospf);margin-bottom:8px">${res.diameter} <span style="font-size:12px;color:var(--text-dim)">cost units</span></div>`:''}
+    ${res.as_numbers.length?`<div class="section-title">AUTONOMOUS SYSTEMS</div>
+      <div class="as-list">${res.as_numbers.map(n=>`<span class="as-chip">AS${n}</span>`).join('')}</div>`:''}
+  `;
+}
+
+// ─── CONFIG EXPORT ───────────────────────────────────────
+async function loadConfig() {
+  const res = await API('/api/export/');
+  configData = res.configs;
+  const c = document.getElementById('tab-cfg');
+  if (!configData || !Object.keys(configData).length) {
+    c.innerHTML = '<div class="empty"><div class="empty-ico">≡</div>No routers to configure</div>';
+    return;
+  }
+  const routers = Object.keys(configData);
+  let html = `<div class="cfg-router-select">
+    <label>Select Router</label>
+    <select id="cfg-sel" onchange="showConfig()">
+      ${routers.map(n=>`<option value="${n}">${n}</option>`).join('')}
+    </select>
+  </div>
+  <div id="cfg-display"></div>
+  <button class="copy-btn" onclick="copyConfig()">⊡ COPY CONFIG</button>`;
+  c.innerHTML = html;
+  showConfig();
+}
+
+function showConfig() {
+  const sel = document.getElementById('cfg-sel');
+  if (!sel||!configData) return;
+  const cfg = configData[sel.value] || '';
+  const highlighted = cfg.split('\n').map(line => {
+    if (line.startsWith('!')) return `<span class="cfg-comment">${escH(line)}</span>`;
+    if (/^(hostname|router|interface|ip|bgp|neighbor|shutdown|no shutdown)/.test(line.trim()))
+      return `<span class="cfg-keyword">${escH(line)}</span>`;
+    return `<span class="cfg-value">${escH(line)}</span>`;
+  }).join('\n');
+  document.getElementById('cfg-display').innerHTML = `<pre class="cfg-code">${highlighted}</pre>`;
+}
+
+function copyConfig() {
+  const sel = document.getElementById('cfg-sel');
+  if (!sel||!configData) return;
+  navigator.clipboard.writeText(configData[sel.value]||'').then(()=>notify('Config copied!','success'));
+}
+
+function escH(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─── LOGS ─────────────────────────────────────────────────
+async function loadLogs() {
+  const res = await API('/api/logs/');
+  const c = document.getElementById('tab-log');
+  if (!res.logs?.length) { c.innerHTML='<div class="empty"><div class="empty-ico">▸</div>No entries</div>'; return; }
+  c.innerHTML = res.logs.map(l=>`
+    <div class="log-entry log-${l.log_type}">
+      <span class="log-tag">${l.log_type.toUpperCase()}</span>
+      <span>${escH(l.message.replace(/^\[(?:OSPF|BGP|System)\]\s*/,''))}</span>
+    </div>`).join('');
+}
+
+// ─── PACKET TRACE ────────────────────────────────────────
+async function runTrace() {
+  const src = document.getElementById('tr-src').value;
+  const dst = document.getElementById('tr-dst').value;
+  if (!src||!dst||src===dst) { notify('Select source and destination','error'); return; }
+  stopAnimation();
+  const res = await API(`/api/paths/?src=${src}&dst=${dst}`);
+  if (!res.paths?.length) { notify('No path found between routers','error'); tracePaths=null; renderCanvas(); return; }
+  tracePaths = res.paths;
+  selectedTraceIdx = 0;
+  renderCanvas();
+  renderTracePaths(res.paths);
+  document.getElementById('path-legend').style.display='block';
+  document.getElementById('anim-btn').style.display='block';
+  switchTab('ospf');
+  notify(`Found ${res.paths.length} path${res.paths.length!==1?'s':''}`, 'success');
+}
+
+function renderTracePaths(paths) {
+  const c = document.getElementById('tab-ospf');
+  const src = topo.routers.find(r=>r.id===+document.getElementById('tr-src').value);
+  const dst = topo.routers.find(r=>r.id===+document.getElementById('tr-dst').value);
+  let html = `<div class="trace-panel">
+    <div class="trace-title">⟳ TRACE: ${src?.name||'?'} → ${dst?.name||'?'}</div>
+    ${paths.map((p,i)=>`
+      <div class="trace-path-item ${i===0?'selected':''}" id="tpi-${i}" onclick="selectPath(${i})">
+        <span class="trace-cost">${p.cost}</span>
+        <span class="trace-nodes">${p.node_names.join(' → ')}</span>
+        ${i===0?'<span style="color:var(--green);font-size:9px;margin-left:auto">BEST</span>':''}
+      </div>
+    `).join('')}
+  </div>`;
+  if (ospfResults) html += buildOSPFHtml(ospfResults);
+  c.innerHTML = html;
+}
+
+function selectPath(idx) {
+  selectedTraceIdx = idx;
+  document.querySelectorAll('[id^="tpi-"]').forEach((el,i)=>el.classList.toggle('selected',i===idx));
+  stopAnimation();
+  renderCanvas();
+}
+
+function enterTraceMode() {
+  switchTab('ospf');
+  notify('Select source and destination in the Trace panel','info');
+  const tb = document.querySelector('.psec-hdr');
+  // Scroll sidebar to trace section
+  document.querySelector('.sidebar').scrollTo({top:200, behavior:'smooth'});
+}
+
+// ─── ANIMATION ───────────────────────────────────────────
+let animNodes = [];
+let animT = 0;
+
+function toggleAnimation() {
+  if (animActive) stopAnimation();
+  else startAnimation();
+}
+
+function startAnimation() {
+  if (!tracePaths||!tracePaths[selectedTraceIdx]) return;
+  animActive = true;
+  animT = 0;
+  animNodes = tracePaths[selectedTraceIdx].nodes;
+  document.getElementById('anim-btn').textContent = '■ STOP';
+  animFrame();
+}
+
+function stopAnimation() {
+  animActive = false;
+  if (animTimer) { cancelAnimationFrame(animTimer); animTimer=null; }
+  document.getElementById('anim-btn').textContent = '▶ ANIMATE PACKET';
+  renderCanvas();
+}
+
+let lastTs = 0;
+const ANIM_SPEED = 600; // ms per segment
+
+function animFrame(ts=0) {
+  if (!animActive) return;
+  const dt = ts - lastTs;
+  if (dt > ANIM_SPEED) {
+    lastTs = ts;
+    animT += 1;
+    if (animT >= animNodes.length) animT = 0;
+  }
+  renderCanvas();
+  animTimer = requestAnimationFrame(animFrame);
+}
+
+function drawAnimPacket(svg) {
+  if (!animNodes || animNodes.length < 2) return;
+  const idx = animT % animNodes.length;
+  const nextIdx = (animT + 1) % animNodes.length;
+  const r1 = topo.routers.find(r=>r.id===animNodes[idx]);
+  const r2 = topo.routers.find(r=>r.id===animNodes[nextIdx]);
+  if (!r1||!r2) return;
+
+  const progress = (Date.now() % ANIM_SPEED) / ANIM_SPEED;
+  const px = r1.x_pos + (r2.x_pos - r1.x_pos) * progress;
+  const py = r1.y_pos + (r2.y_pos - r1.y_pos) * progress;
+
+  const dot = svgE('circle');
+  Object.assign_attrs(dot, {cx:px, cy:py, r:'6', fill:'#a78bfa',
+    filter:'drop-shadow(0 0 6px #a78bfa)', 'pointer-events':'none'});
+  const trail = svgE('circle');
+  Object.assign_attrs(trail, {cx:px, cy:py, r:'10', fill:'rgba(167,139,250,0.2)', 'pointer-events':'none'});
+  svg.appendChild(trail);
+  svg.appendChild(dot);
+}
+
+
+// let animStartTime = null; // Single source of truth
+// const ANIM_SPEED_PER_SEGMENT = 600; // ms
+
+// function startAnimation() {
+//   if (!tracePaths || !tracePaths[selectedTraceIdx]) return;
+//   animActive = true;
+//   animStartTime = Date.now(); // Set start time
+//   animNodes = tracePaths[selectedTraceIdx].nodes;
+//   document.getElementById('anim-btn').textContent = '■ STOP';
+//   animFrame();
+// }
+
+// function animFrame() {
+//   if (!animActive) return;
+//   renderCanvas();
+//   animTimer = requestAnimationFrame(animFrame);
+// }
+
+// function drawAnimPacket(svg) {
+//   if (!animNodes || animNodes.length < 2) return;
+  
+//   const elapsed = Date.now() - animStartTime;
+//   const segmentDuration = ANIM_SPEED_PER_SEGMENT;
+//   const totalDuration = segmentDuration * (animNodes.length - 1);
+//   const loopedElapsed = elapsed % totalDuration;
+  
+//   const currentSegment = Math.floor(loopedElapsed / segmentDuration);
+//   const progress = (loopedElapsed % segmentDuration) / segmentDuration;
+  
+//   // Handle wraparound
+//   const idx = currentSegment % (animNodes.length - 1);
+//   const nextIdx = (idx + 1) % animNodes.length;
+  
+//   // ... rest of drawing code remains the same ...
+// }
+
+
+// ─── ANIMATION ───────────────────────────────────────────
+// let animNodes = [];
+// let animStartTime = null;
+// let animActive = false;
+
+// function toggleAnimation() {
+//   if (animActive) stopAnimation();
+//   else startAnimation();
+// }
+
+// function startAnimation() {
+//   if (!tracePaths || !tracePaths[selectedTraceIdx]) return;
+//   animActive = true;
+//   animStartTime = Date.now();
+//   animNodes = tracePaths[selectedTraceIdx].nodes;
+//   document.getElementById('anim-btn').textContent = '■ STOP';
+//   animFrame();
+// }
+
+// function stopAnimation() {
+//   animActive = false;
+//   if (animTimer) { cancelAnimationFrame(animTimer); animTimer = null; }
+//   document.getElementById('anim-btn').textContent = '▶ ANIMATE PACKET';
+//   renderCanvas();
+// }
+
+// const ANIM_SPEED = 2000; // ms per full path traversal
+
+// function animFrame() {
+//   if (!animActive) return;
+//   renderCanvas();
+//   animTimer = requestAnimationFrame(animFrame);
+// }
+
+// function drawAnimPacket(svg) {
+//   if (!animNodes || animNodes.length < 2) return;
+  
+//   const elapsed = Date.now() - animStartTime;
+//   const totalDuration = ANIM_SPEED * animNodes.length;
+//   const loopedElapsed = elapsed % totalDuration;
+//   const currentSegment = Math.floor(loopedElapsed / ANIM_SPEED);
+//   const progress = (loopedElapsed % ANIM_SPEED) / ANIM_SPEED;
+  
+//   // Handle wraparound at end of path
+//   const idx = currentSegment % (animNodes.length - 1);
+//   const nextIdx = (idx + 1) % animNodes.length;
+  
+//   const r1 = topo.routers.find(r => r.id === animNodes[idx]);
+//   const r2 = topo.routers.find(r => r.id === animNodes[nextIdx]);
+//   if (!r1 || !r2) return;
+
+//   // Ease-in-out for smoother motion
+//   const easedProgress = progress < 0.5 
+//     ? 2 * progress * progress 
+//     : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+  
+//   const px = r1.x_pos + (r2.x_pos - r1.x_pos) * easedProgress;
+//   const py = r1.y_pos + (r2.y_pos - r1.y_pos) * easedProgress;
+
+//   // Draw packet with glow
+//   const dot = svgE('circle');
+//   Object.assign_attrs(dot, {
+//     cx: px, cy: py, r: '7', fill: '#a78bfa',
+//     filter: 'drop-shadow(0 0 8px #a78bfa)',
+//     'pointer-events': 'none'
+//   });
+  
+//   // Inner bright core
+//   const core = svgE('circle');
+//   Object.assign_attrs(core, {
+//     cx: px, cy: py, r: '3', fill: '#ffffff',
+//     'pointer-events': 'none'
+//   });
+  
+//   svg.appendChild(dot);
+//   svg.appendChild(core);
+// }
+
+// ─── PRESETS ─────────────────────────────────────────────
+async function loadPreset(preset) {
+  stopAnimation(); tracePaths=null;
+  await API('/api/preset/', {method:'POST', body:JSON.stringify({preset})});
+  await loadTopo(); renderCanvas(); updateSelects();
+  ['tab-ospf','tab-bgp','tab-log'].forEach(id => {
+    const labels = {ospf:'◈ Run OSPF SPF to see routing tables', bgp:'◎ Run BGP to see path selection', log:'▸ No entries yet'};
+    const key = id.replace('tab-','');
+    document.getElementById(id).innerHTML = `<div class="empty"><div class="empty-ico">${key==='ospf'?'◈':key==='bgp'?'◎':'▸'}</div>${labels[key]}</div>`;
+  });
+  document.getElementById('path-legend').style.display='none';
+  document.getElementById('anim-btn').style.display='none';
+  document.getElementById('sel-info').style.display='none';
+  notify(`Preset '${preset}' loaded`,'success');
+  await loadStats();
+  await loadLogs();
+}
+
+// ─── TABS ────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`.t-${tab}`).classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  if (tab==='log') loadLogs();
+  if (tab==='stat') loadStats();
+  if (tab==='cfg') loadConfig();
+}
+
+function buildOSPFHtml(lsdb) {
+  let html = '';
+  for (const [,d] of Object.entries(lsdb)) {
+    html += `<div class="rr">
+      <div class="rr-hdr"><span class="rr-name">${d.name}</span><span class="rr-rid">${d.router_id}</span><span class="rr-area">Area <span>${d.area}</span></span></div>
+      <div class="nbr-list">${d.neighbors.map(n=>`<span class="nbr-chip">↔${n.router_name}:${n.cost}</span>`).join('')}</div>
+      <table class="rtbl"><thead><tr><th>Dest</th><th>Cost</th><th>Via</th></tr></thead><tbody>
+        ${d.routing_table.map(rt=>`<tr><td>${rt.dest_name}</td><td><span class="cost-b">${rt.cost}</span></td><td style="color:${rt.reachable?'var(--text)':'var(--red)'}">${rt.reachable?rt.next_hop:'⚠'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  return html;
+}
+
+// ─── NOTIFY ──────────────────────────────────────────────
+function notify(msg, type='success') {
+  const el = document.getElementById('notif');
+  el.textContent = msg; el.className=`notif ${type}`;
+  el.style.display='block';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.display='none'; }, 2800);
+}
+
+// ─── RESIZE ──────────────────────────────────────────────
+new ResizeObserver(()=>{
+  const svg=document.getElementById('net-canvas');
+  svg.setAttribute('viewBox',`0 0 ${svg.clientWidth} ${svg.clientHeight}`);
+  renderCanvas();
+}).observe(document.querySelector('.canvas-area'));
+
+init();
+</script>
+</body>
+</html>
